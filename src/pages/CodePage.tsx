@@ -1,0 +1,172 @@
+import { useState } from "react";
+import { Copy, Check, FileCode, Palette, Braces, Tag, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useUIStore } from "@/store/uiStore";
+import { useNavigate } from "react-router-dom";
+
+const codeExplanations = {
+  html: [
+    { tag: "div", explanation: "Container element for grouping content" },
+    { tag: "class", explanation: "CSS class attribute for styling elements" },
+    { tag: "input", explanation: "Form input field for user data entry" },
+    { tag: "button", explanation: "Clickable button element for actions" },
+    { tag: "form", explanation: "Container for form inputs and submission" },
+  ],
+  css: [
+    { tag: "display: flex", explanation: "Enables flexbox layout for child alignment" },
+    { tag: "border-radius", explanation: "Rounds the corners of an element" },
+    { tag: "transition", explanation: "Animates property changes smoothly" },
+    { tag: "linear-gradient", explanation: "Creates a gradient color background" },
+    { tag: "box-shadow", explanation: "Adds shadow effects to elements" },
+  ],
+  js: [
+    { tag: "addEventListener", explanation: "Attaches an event handler to an element" },
+    { tag: "querySelector", explanation: "Selects the first matching element" },
+    { tag: "preventDefault", explanation: "Stops the default action of an event" },
+    { tag: "console.log", explanation: "Outputs messages to the browser console" },
+  ],
+};
+
+export default function CodePage() {
+  const { generatedUI } = useUIStore();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("html");
+  const [copiedTab, setCopiedTab] = useState<string | null>(null);
+
+  const handleCopy = async (code: string, tab: string) => {
+    await navigator.clipboard.writeText(code);
+    setCopiedTab(tab);
+    setTimeout(() => setCopiedTab(null), 2000);
+  };
+
+  if (!generatedUI) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+            <FileCode className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">No Code Available</h2>
+          <p className="text-muted-foreground mb-4">
+            Generate a UI component first to see the code
+          </p>
+          <Button onClick={() => navigate("/")}>Go to Generate</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const tabs = [
+    { id: "html", label: "HTML", icon: Tag, code: generatedUI.html },
+    { id: "css", label: "CSS", icon: Palette, code: generatedUI.css },
+    { id: "js", label: "JavaScript", icon: Braces, code: generatedUI.js },
+  ];
+
+  return (
+    <div className="flex-1 flex flex-col lg:flex-row p-6 gap-6">
+      {/* Code Panel */}
+      <div className="flex-1 flex flex-col animate-fade-in">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <TabsList className="bg-secondary">
+              {tabs.map((tab) => (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                handleCopy(
+                  tabs.find((t) => t.id === activeTab)?.code || "",
+                  activeTab
+                )
+              }
+            >
+              {copiedTab === activeTab ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy Code
+                </>
+              )}
+            </Button>
+          </div>
+
+          {tabs.map((tab) => (
+            <TabsContent
+              key={tab.id}
+              value={tab.id}
+              className="flex-1 mt-0 data-[state=active]:flex flex-col"
+            >
+              <div className="flex-1 rounded-lg bg-[#0d1117] border border-border overflow-hidden">
+                <div className="p-4 border-b border-border flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                    <div className="w-3 h-3 rounded-full bg-green-500/80" />
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {tab.label.toLowerCase()}.{tab.id === "js" ? "js" : tab.id}
+                  </span>
+                </div>
+                <pre className="p-4 overflow-auto h-[400px] lg:h-full">
+                  <code className="text-sm font-mono text-foreground whitespace-pre">
+                    {tab.code}
+                  </code>
+                </pre>
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+
+      {/* Explanation Panel */}
+      <div className="w-full lg:w-80 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Info className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold">Code Explanation</h3>
+          </div>
+
+          <div className="space-y-3">
+            {codeExplanations[activeTab as keyof typeof codeExplanations]?.map(
+              (item, index) => (
+                <div
+                  key={index}
+                  className="p-3 rounded-lg bg-secondary/50 border border-border"
+                >
+                  <code className="text-sm font-mono text-primary">{item.tag}</code>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {item.explanation}
+                  </p>
+                </div>
+              )
+            )}
+          </div>
+
+          <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
+            <p className="text-sm font-medium mb-1">💡 Pro Tip</p>
+            <p className="text-xs text-muted-foreground">
+              Click on any code element to get a detailed explanation of what it does
+              and how to customize it.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
