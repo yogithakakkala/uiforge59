@@ -1,11 +1,12 @@
-import { create } from 'zustand';
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 interface GeneratedUI {
   html: string;
   css: string;
   js: string;
   prompt: string;
-  timestamp: Date;
+  timestamp: number; // epoch ms
 }
 
 interface UIStore {
@@ -18,14 +19,27 @@ interface UIStore {
   clearChat: () => void;
 }
 
-export const useUIStore = create<UIStore>((set) => ({
-  generatedUI: null,
-  isGenerating: false,
-  chatMessages: [],
-  setGeneratedUI: (ui) => set({ generatedUI: ui }),
-  setIsGenerating: (loading) => set({ isGenerating: loading }),
-  addChatMessage: (message) => set((state) => ({ 
-    chatMessages: [...state.chatMessages, message] 
-  })),
-  clearChat: () => set({ chatMessages: [] }),
-}));
+export const useUIStore = create<UIStore>()(
+  persist(
+    (set) => ({
+      generatedUI: null,
+      isGenerating: false,
+      chatMessages: [],
+      setGeneratedUI: (ui) => set({ generatedUI: ui }),
+      setIsGenerating: (loading) => set({ isGenerating: loading }),
+      addChatMessage: (message) =>
+        set((state) => ({
+          chatMessages: [...state.chatMessages, message],
+        })),
+      clearChat: () => set({ chatMessages: [] }),
+    }),
+    {
+      name: "ui-forge-store",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        generatedUI: state.generatedUI,
+        chatMessages: state.chatMessages,
+      }),
+    }
+  )
+);

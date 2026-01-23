@@ -18,7 +18,7 @@ export function MainLayout({ children }: MainLayoutProps) {
               <div className="h-8 w-8 rounded-full bg-gradient-to-r from-primary to-accent" />
             </div>
           </header>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 min-h-0 overflow-auto flex flex-col">
             {children}
           </div>
         </main>
