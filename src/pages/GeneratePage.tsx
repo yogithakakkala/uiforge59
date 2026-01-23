@@ -29,7 +29,7 @@ export default function GeneratePage() {
       setGeneratedUI({
         ...generatedCode,
         prompt,
-        timestamp: new Date(),
+        timestamp: Date.now(),
       });
       toast.success("UI generated successfully!");
       navigate("/preview");
