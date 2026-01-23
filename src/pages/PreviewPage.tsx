@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Monitor, Tablet, Smartphone, RotateCcw, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/uiStore";
@@ -11,69 +11,52 @@ const viewports = [
 ];
 
 export default function PreviewPage() {
-  const { generatedUI } = useUIStore();
+  const { generatedUI, hasHydrated } = useUIStore();
   const navigate = useNavigate();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [activeViewport, setActiveViewport] = useState("desktop");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
 
-  useEffect(() => {
-    if (!generatedUI) return;
+  const iframeSrcDoc = useMemo(() => {
+    if (!generatedUI) return "";
 
-    const doc = iframeRef.current?.contentDocument;
-    if (!doc) return;
-
-    const content = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; }
-            ${generatedUI.css}
-          </style>
-        </head>
-        <body>
-          ${generatedUI.html}
-          <script>${generatedUI.js}</script>
-        </body>
-      </html>
-    `;
-
-    doc.open();
-    doc.write(content);
-    doc.close();
+    // NOTE: We intentionally render via srcDoc because sandboxed iframes without
+    // `allow-same-origin` cannot be accessed with `contentDocument`/`document.write`.
+    return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; }
+      ${generatedUI.css}
+    </style>
+  </head>
+  <body>
+    ${generatedUI.html}
+    <script>
+      try {
+        ${generatedUI.js}
+      } catch (e) {
+        console.error(e);
+      }
+    </script>
+  </body>
+</html>`;
   }, [generatedUI]);
 
   const handleRefresh = () => {
-    if (iframeRef.current) {
-      const doc = iframeRef.current.contentDocument;
-      if (doc && generatedUI) {
-        const content = `
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="UTF-8">
-              <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; }
-                ${generatedUI.css}
-              </style>
-            </head>
-            <body>
-              ${generatedUI.html}
-              <script>${generatedUI.js}</script>
-            </body>
-          </html>
-        `;
-        doc.open();
-        doc.write(content);
-        doc.close();
-      }
-    }
+    setIframeKey((k) => k + 1);
   };
+
+  if (!hasHydrated) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <p className="text-sm text-muted-foreground">Loading preview…</p>
+      </div>
+    );
+  }
 
   if (!generatedUI) {
     return (
@@ -144,19 +127,20 @@ export default function PreviewPage() {
         }`}
         style={{ animationDelay: "0.1s" }}
       >
-        <div className="h-full flex items-center justify-center bg-[#0a0a0a] p-4">
+        <div className="h-full flex items-center justify-center bg-muted/30 p-4">
           <div
-            className="h-full bg-white rounded-lg overflow-hidden shadow-2xl transition-all duration-300"
+            className="h-full bg-background rounded-lg overflow-hidden shadow-2xl transition-all duration-300"
             style={{
               width: currentViewport?.width || "100%",
               maxWidth: "100%",
             }}
           >
             <iframe
-              ref={iframeRef}
+              key={iframeKey}
               className="w-full h-full border-0"
               title="UI Preview"
               sandbox="allow-scripts"
+              srcDoc={iframeSrcDoc}
             />
           </div>
         </div>
