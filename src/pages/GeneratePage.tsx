@@ -16,7 +16,7 @@ const examplePrompts = [
 
 export default function GeneratePage() {
   const [prompt, setPrompt] = useState("");
-  const { isGenerating, setIsGenerating, setGeneratedUI } = useUIStore();
+  const { isGenerating, setIsGenerating, setGeneratedUI, addToHistory } = useUIStore();
   const navigate = useNavigate();
 
   const handleGenerate = async () => {
@@ -26,11 +26,13 @@ export default function GeneratePage() {
     
     try {
       const generatedCode = await generateUI(prompt);
-      setGeneratedUI({
+      const uiData = {
         ...generatedCode,
         prompt,
         timestamp: Date.now(),
-      });
+      };
+      setGeneratedUI(uiData);
+      addToHistory(uiData);
       toast.success("UI generated successfully!");
       navigate("/preview");
     } catch (error) {
