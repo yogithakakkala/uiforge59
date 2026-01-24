@@ -8,6 +8,8 @@ import GeneratePage from "./pages/GeneratePage";
 import PreviewPage from "./pages/PreviewPage";
 import CodePage from "./pages/CodePage";
 import TutorPage from "./pages/TutorPage";
+import HistoryPage from "./pages/HistoryPage";
+import PracticePage from "./pages/PracticePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,8 @@ const App = () => (
             <Route path="/preview" element={<PreviewPage />} />
             <Route path="/code" element={<CodePage />} />
             <Route path="/tutor" element={<TutorPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/practice" element={<PracticePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </MainLayout>

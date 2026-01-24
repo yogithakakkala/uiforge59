@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Wand2, Eye, Code2, GraduationCap, Sparkles, Zap, ChevronDown } from "lucide-react";
+import { Wand2, Eye, Code2, GraduationCap, Sparkles, Zap, ChevronDown, History, FlaskConical } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,12 +27,14 @@ const navItems = [
   { title: "Preview", url: "/preview", icon: Eye, description: "View your creation" },
   { title: "Code & Learn", url: "/code", icon: Code2, description: "Explore the code" },
   { title: "AI Tutor", url: "/tutor", icon: GraduationCap, description: "Get guided help" },
+  { title: "History", url: "/history", icon: History, description: "Past generations" },
+  { title: "Practice", url: "/practice", icon: FlaskConical, description: "Code playground" },
 ];
 
 export function AppSidebar() {
   const [quickGenerateOpen, setQuickGenerateOpen] = useState(false);
   const navigate = useNavigate();
-  const { setGeneratedUI, setIsGenerating } = useUIStore();
+  const { setGeneratedUI, setIsGenerating, addToHistory } = useUIStore();
 
   const handleQuickPrompt = async (prompt: string) => {
     setQuickGenerateOpen(false);
@@ -41,11 +43,13 @@ export function AppSidebar() {
     setIsGenerating(true);
     try {
       const generatedCode = await generateUI(prompt);
-      setGeneratedUI({
+      const uiData = {
         ...generatedCode,
         prompt,
         timestamp: Date.now(),
-      });
+      };
+      setGeneratedUI(uiData);
+      addToHistory(uiData);
       toast.success("UI generated successfully!");
       navigate("/preview");
     } catch (error) {
