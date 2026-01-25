@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUIStore } from "@/store/uiStore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { CodeHighlighter } from "@/components/CodeHighlighter";
 
 const codeExplanations = {
   html: [
@@ -221,11 +222,12 @@ Generated on: ${new Date().toLocaleString()}
                     {tab.label.toLowerCase()}.{tab.id === "js" ? "js" : tab.id}
                   </span>
                 </div>
-                <pre className="p-4 overflow-auto h-[400px] lg:h-full">
-                  <code className="text-sm font-mono text-foreground whitespace-pre">
-                    {tab.code}
-                  </code>
-                </pre>
+                <div className="p-4 overflow-auto h-[400px] lg:h-full">
+                  <CodeHighlighter
+                    code={tab.code}
+                    language={tab.id === "js" ? "javascript" : tab.id as "html" | "css"}
+                  />
+                </div>
               </div>
             </TabsContent>
           ))}
