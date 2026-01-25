@@ -3,6 +3,9 @@ import { Monitor, Tablet, Smartphone, RotateCcw, Maximize2 } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/uiStore";
 import { useNavigate } from "react-router-dom";
+import { PreviewEditBar } from "@/components/PreviewEditBar";
+import { refineUI } from "@/lib/generateUI";
+import { toast } from "sonner";
 
 const viewports = [
   { id: "desktop", icon: Monitor, label: "Desktop", width: "100%" },
@@ -11,11 +14,12 @@ const viewports = [
 ];
 
 export default function PreviewPage() {
-  const { generatedUI, hasHydrated } = useUIStore();
+  const { generatedUI, hasHydrated, setGeneratedUI, addToHistory } = useUIStore();
   const navigate = useNavigate();
   const [activeViewport, setActiveViewport] = useState("desktop");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isRefining, setIsRefining] = useState(false);
 
   const iframeSrcDoc = useMemo(() => {
     if (!generatedUI) return "";
@@ -50,6 +54,34 @@ export default function PreviewPage() {
     setIframeKey((k) => k + 1);
   };
 
+  const handleRefine = async (refinementPrompt: string) => {
+    if (!generatedUI) return;
+
+    setIsRefining(true);
+    try {
+      const refinedCode = await refineUI(
+        { html: generatedUI.html, css: generatedUI.css, js: generatedUI.js },
+        refinementPrompt
+      );
+      
+      const updatedUI = {
+        ...refinedCode,
+        prompt: `${generatedUI.prompt} → ${refinementPrompt}`,
+        timestamp: Date.now(),
+      };
+      
+      setGeneratedUI(updatedUI);
+      addToHistory(updatedUI);
+      setIframeKey((k) => k + 1);
+      toast.success("Preview updated!");
+    } catch (error) {
+      console.error("Refinement error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to refine UI");
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
   if (!hasHydrated) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
@@ -78,81 +110,87 @@ export default function PreviewPage() {
   const currentViewport = viewports.find((v) => v.id === activeViewport);
 
   return (
-    <div className="flex-1 flex flex-col p-6">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between mb-4 animate-fade-in">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Preview</h2>
-          <span className="px-2 py-1 rounded-md bg-primary/10 text-primary text-xs">
-            Live
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Viewport Switcher */}
-          <div className="flex items-center gap-1 p-1 bg-secondary rounded-lg">
-            {viewports.map((viewport) => (
-              <button
-                key={viewport.id}
-                onClick={() => setActiveViewport(viewport.id)}
-                className={`p-2 rounded-md transition-colors ${
-                  activeViewport === viewport.id
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                title={viewport.label}
-              >
-                <viewport.icon className="w-4 h-4" />
-              </button>
-            ))}
+    <div className="flex-1 flex flex-col">
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col p-6">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between mb-4 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Preview</h2>
+            <span className="px-2 py-1 rounded-md bg-primary/10 text-primary text-xs">
+              Live
+            </span>
           </div>
 
-          <Button variant="outline" size="icon" onClick={handleRefresh}>
-            <RotateCcw className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-          >
-            <Maximize2 className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
+          <div className="flex items-center gap-2">
+            {/* Viewport Switcher */}
+            <div className="flex items-center gap-1 p-1 bg-secondary rounded-lg">
+              {viewports.map((viewport) => (
+                <button
+                  key={viewport.id}
+                  onClick={() => setActiveViewport(viewport.id)}
+                  className={`p-2 rounded-md transition-colors ${
+                    activeViewport === viewport.id
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={viewport.label}
+                >
+                  <viewport.icon className="w-4 h-4" />
+                </button>
+              ))}
+            </div>
 
-      {/* Preview Frame */}
-      <div
-        className={`flex-1 rounded-lg border border-border bg-card overflow-hidden animate-fade-in ${
-          isFullscreen ? "fixed inset-4 z-50" : ""
-        }`}
-        style={{ animationDelay: "0.1s" }}
-      >
-        <div className="h-full flex items-center justify-center bg-muted/30 p-4">
-          <div
-            className="h-full bg-background rounded-lg overflow-hidden shadow-2xl transition-all duration-300"
-            style={{
-              width: currentViewport?.width || "100%",
-              maxWidth: "100%",
-            }}
-          >
-            <iframe
-              key={iframeKey}
-              className="w-full h-full border-0"
-              title="UI Preview"
-              sandbox="allow-scripts"
-              srcDoc={iframeSrcDoc}
-            />
+            <Button variant="outline" size="icon" onClick={handleRefresh}>
+              <RotateCcw className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+            >
+              <Maximize2 className="w-4 h-4" />
+            </Button>
           </div>
         </div>
+
+        {/* Preview Frame */}
+        <div
+          className={`flex-1 rounded-lg border border-border bg-card overflow-hidden animate-fade-in ${
+            isFullscreen ? "fixed inset-4 z-50" : ""
+          }`}
+          style={{ animationDelay: "0.1s" }}
+        >
+          <div className="h-full flex items-center justify-center bg-muted/30 p-4">
+            <div
+              className="h-full bg-background rounded-lg overflow-hidden shadow-2xl transition-all duration-300"
+              style={{
+                width: currentViewport?.width || "100%",
+                maxWidth: "100%",
+              }}
+            >
+              <iframe
+                key={iframeKey}
+                className="w-full h-full border-0"
+                title="UI Preview"
+                sandbox="allow-scripts"
+                srcDoc={iframeSrcDoc}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Prompt Display */}
+        <div className="mt-4 p-3 rounded-lg bg-secondary/50 border border-border animate-fade-in" style={{ animationDelay: "0.2s" }}>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Prompt:</span>{" "}
+            {generatedUI.prompt}
+          </p>
+        </div>
       </div>
 
-      {/* Prompt Display */}
-      <div className="mt-4 p-3 rounded-lg bg-secondary/50 border border-border animate-fade-in" style={{ animationDelay: "0.2s" }}>
-        <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Prompt:</span>{" "}
-          {generatedUI.prompt}
-        </p>
-      </div>
+      {/* Edit Bar */}
+      <PreviewEditBar onRefine={handleRefine} isRefining={isRefining} />
     </div>
   );
 }
