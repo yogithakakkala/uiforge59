@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { Play, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { CodeEditor } from "@/components/CodeEditor";
 
 const defaultHTML = `<div class="container">
   <h1>Hello World!</h1>
@@ -119,10 +119,10 @@ export default function PracticePage() {
               <div className="w-3 h-3 rounded-full bg-orange-500" />
               <span className="text-sm font-medium">HTML</span>
             </div>
-            <Textarea
+            <CodeEditor
               value={html}
-              onChange={(e) => setHtml(e.target.value)}
-              className="flex-1 resize-none rounded-none border-0 font-mono text-sm bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+              onChange={setHtml}
+              language="html"
               placeholder="Write your HTML here..."
             />
           </div>
@@ -133,10 +133,10 @@ export default function PracticePage() {
               <div className="w-3 h-3 rounded-full bg-blue-500" />
               <span className="text-sm font-medium">CSS</span>
             </div>
-            <Textarea
+            <CodeEditor
               value={css}
-              onChange={(e) => setCss(e.target.value)}
-              className="flex-1 resize-none rounded-none border-0 font-mono text-sm bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+              onChange={setCss}
+              language="css"
               placeholder="Write your CSS here..."
             />
           </div>
@@ -147,10 +147,10 @@ export default function PracticePage() {
               <div className="w-3 h-3 rounded-full bg-yellow-500" />
               <span className="text-sm font-medium">JavaScript</span>
             </div>
-            <Textarea
+            <CodeEditor
               value={js}
-              onChange={(e) => setJs(e.target.value)}
-              className="flex-1 resize-none rounded-none border-0 font-mono text-sm bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+              onChange={setJs}
+              language="javascript"
               placeholder="Write your JavaScript here..."
             />
           </div>
