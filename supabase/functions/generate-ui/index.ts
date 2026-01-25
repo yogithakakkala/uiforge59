@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt } = await req.json();
+    const { prompt, existingCode, isRefinement } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
@@ -22,7 +22,40 @@ serve(async (req) => {
       throw new Error("Prompt is required");
     }
 
-    const systemPrompt = `You are an expert UI developer. Generate clean, modern, and responsive UI components using HTML, CSS, and JavaScript.
+    let systemPrompt: string;
+    let userPrompt: string;
+
+    if (isRefinement && existingCode) {
+      systemPrompt = `You are an expert UI developer. You will be given existing HTML, CSS, and JavaScript code, and a request to modify it.
+
+IMPORTANT: You must respond with ONLY valid JSON in this exact format (no markdown, no code blocks, no extra text):
+{"html":"<your html here>","css":"<your css here>","js":"<your js here>"}
+
+Rules:
+1. Modify the existing code based on the user's request
+2. Keep the overall structure intact unless explicitly asked to change it
+3. Apply the requested changes precisely
+4. Maintain consistency with the existing design unless asked otherwise
+5. Ensure responsive design is preserved
+6. Use vanilla JavaScript for interactivity
+7. Escape all quotes and special characters properly in the JSON strings
+
+Remember: Respond with ONLY the JSON object, nothing else.`;
+
+      userPrompt = `Here is the existing code:
+
+HTML:
+${existingCode.html}
+
+CSS:
+${existingCode.css}
+
+JavaScript:
+${existingCode.js || "// No JavaScript"}
+
+Please apply these changes: ${prompt}`;
+    } else {
+      systemPrompt = `You are an expert UI developer. Generate clean, modern, and responsive UI components using HTML, CSS, and JavaScript.
 
 IMPORTANT: You must respond with ONLY valid JSON in this exact format (no markdown, no code blocks, no extra text):
 {"html":"<your html here>","css":"<your css here>","js":"<your js here>"}
@@ -41,6 +74,9 @@ Rules:
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
 
+      userPrompt = `Generate a UI component for: ${prompt}`;
+    }
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -51,7 +87,7 @@ Remember: Respond with ONLY the JSON object, nothing else.`;
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a UI component for: ${prompt}` },
+          { role: "user", content: userPrompt },
         ],
       }),
     });
