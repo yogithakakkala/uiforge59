@@ -14,13 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      ui_generations: {
+        Row: {
+          created_at: string
+          css: string | null
+          html: string | null
+          id: string
+          js: string | null
+          prompt: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          css?: string | null
+          html?: string | null
+          id?: string
+          js?: string | null
+          prompt: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          css?: string | null
+          html?: string | null
+          id?: string
+          js?: string | null
+          prompt?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ui_generations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_owner_of_generation: {
+        Args: { generation_id: string }
+        Returns: boolean
+      }
+      is_owner_of_profile: { Args: { profile_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
