@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Wand2, Mail, Lock, User, Loader2, Sparkles, Eye, EyeOff } from "lucide-react";
+import { Wand2, Lock, User, Loader2, Sparkles, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -16,24 +16,24 @@ export default function AuthPage() {
   const navigate = useNavigate();
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
   // Signup form state
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
   const [signupUsername, setSignupUsername] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginEmail || !loginPassword) return;
+    if (!loginUsername || !loginPassword) return;
 
     setIsLoading(true);
-    const { error } = await signIn(loginEmail, loginPassword);
+    const { error } = await signIn(loginUsername, loginPassword);
     setIsLoading(false);
 
     if (error) {
-      toast.error(error.message);
+      toast.error("Invalid username or password");
     } else {
       toast.success("Welcome back!");
       navigate("/");
@@ -42,16 +42,35 @@ export default function AuthPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signupEmail || !signupPassword || !signupUsername) return;
+    if (!signupUsername || !signupPassword) return;
+
+    if (signupPassword !== signupConfirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    if (signupPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
 
     setIsLoading(true);
-    const { error } = await signUp(signupEmail, signupPassword, signupUsername);
+    const { error } = await signUp(signupUsername, signupPassword);
     setIsLoading(false);
 
     if (error) {
-      toast.error(error.message);
+      if (error.message.includes("already registered")) {
+        toast.error("Username already taken");
+      } else {
+        toast.error(error.message);
+      }
     } else {
-      toast.success("Account created! Please check your email to verify your account.");
+      toast.success("Account created! Signing you in...");
+      // Auto sign in after signup
+      const { error: signInError } = await signIn(signupUsername, signupPassword);
+      if (!signInError) {
+        navigate("/");
+      }
     }
   };
 
@@ -83,15 +102,15 @@ export default function AuthPage() {
             <TabsContent value="login" className="mt-0">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-username">Username</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      id="login-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
+                      id="login-username"
+                      type="text"
+                      placeholder="Enter your username"
+                      value={loginUsername}
+                      onChange={(e) => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                       className="pl-10"
                       required
                     />
@@ -142,28 +161,14 @@ export default function AuthPage() {
                     <Input
                       id="signup-username"
                       type="text"
-                      placeholder="johndoe"
+                      placeholder="Choose a username"
                       value={signupUsername}
-                      onChange={(e) => setSignupUsername(e.target.value)}
+                      onChange={(e) => setSignupUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                       className="pl-10"
                       required
                     />
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
+                  <p className="text-xs text-muted-foreground">Lowercase letters, numbers, and underscores only</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
@@ -186,6 +191,22 @@ export default function AuthPage() {
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="signup-confirm-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={signupConfirmPassword}
+                      onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                      className="pl-10"
+                      minLength={6}
+                      required
+                    />
                   </div>
                 </div>
                 <Button type="submit" className="w-full" variant="glow" disabled={isLoading}>
