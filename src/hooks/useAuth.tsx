@@ -15,7 +15,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   signUp: (username: string, password: string) => Promise<{ error: Error | null }>;
-  signIn: (username: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (username: string, password: string, rememberMe?: boolean) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -40,6 +40,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Check if session should be cleared (remember me was false and browser was closed)
+    const checkRememberMe = async () => {
+      const rememberMe = localStorage.getItem('uiforge_remember_me');
+      const sessionActive = sessionStorage.getItem('uiforge_session_active');
+      
+      // If remember me is not set and no active session flag, clear the auth session
+      if (!rememberMe && !sessionActive) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          await supabase.auth.signOut();
+        }
+      }
+    };
+    
+    checkRememberMe();
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -83,16 +99,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error as Error | null };
   };
 
-  const signIn = async (username: string, password: string) => {
+  const signIn = async (username: string, password: string, rememberMe: boolean = true) => {
     const email = `${username}@uiforge.local`;
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
+    if (!error) {
+      // Store remember me preference - if false, session will be cleared on browser close
+      if (rememberMe) {
+        localStorage.setItem('uiforge_remember_me', 'true');
+      } else {
+        localStorage.removeItem('uiforge_remember_me');
+        sessionStorage.setItem('uiforge_session_active', 'true');
+      }
+    }
+    
     return { error: error as Error | null };
   };
 
   const signOut = async () => {
+    localStorage.removeItem('uiforge_remember_me');
+    sessionStorage.removeItem('uiforge_session_active');
     await supabase.auth.signOut();
     setProfile(null);
   };

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -18,6 +19,7 @@ export default function AuthPage() {
   // Login form state
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Signup form state
   const [signupUsername, setSignupUsername] = useState("");
@@ -29,7 +31,7 @@ export default function AuthPage() {
     if (!loginUsername || !loginPassword) return;
 
     setIsLoading(true);
-    const { error } = await signIn(loginUsername, loginPassword);
+    const { error } = await signIn(loginUsername, loginPassword, rememberMe);
     setIsLoading(false);
 
     if (error) {
@@ -137,6 +139,16 @@ export default function AuthPage() {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="remember-me"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  />
+                  <Label htmlFor="remember-me" className="text-sm font-normal cursor-pointer">
+                    Remember me
+                  </Label>
                 </div>
                 <Button type="submit" className="w-full" variant="glow" disabled={isLoading}>
                   {isLoading ? (
