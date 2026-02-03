@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -35,6 +36,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             <SidebarTrigger className="mr-4" />
             <div className="flex-1" />
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2">
