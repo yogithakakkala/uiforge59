@@ -105,6 +105,7 @@ Rules:
 7. Escape all quotes and special characters properly in the JSON strings
 8. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
 9. NEVER include inline event handlers that reference external URLs
+10. For images, ALWAYS use https://picsum.photos for placeholder images (e.g. https://picsum.photos/400/300, https://picsum.photos/seed/unique-name/400/300 for deterministic images). NEVER use broken image links.
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
 
@@ -139,6 +140,8 @@ Rules:
 10. The HTML should be a complete component that fills the container
 11. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
 12. NEVER include inline event handlers that reference external URLs
+13. For images, ALWAYS use https://picsum.photos for placeholder images (e.g. https://picsum.photos/400/300 for a 400x300 image, https://picsum.photos/seed/unique-name/400/300 for deterministic images). Use appropriate sizes for each context (avatars: 80x80, cards: 400x300, heroes: 1200x600, thumbnails: 200x200). NEVER use broken image links or placeholder.com.
+14. Use realistic, high-quality placeholder images generously - include images for avatars, cards, hero sections, product images, backgrounds, etc. Make the UI look visually rich and complete.
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
 
