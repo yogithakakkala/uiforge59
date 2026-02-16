@@ -1,9 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const MAX_PROMPT_LENGTH = 500;
+const MAX_EXISTING_CODE_LENGTH = 50000;
+
+// Basic sanitization: strip control characters except newlines/tabs
+function sanitizeInput(input: string): string {
+  return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,6 +20,31 @@ serve(async (req) => {
   }
 
   try {
+    // --- Authentication ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // --- Input parsing & validation ---
     const { prompt, existingCode, isRefinement } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
@@ -19,7 +53,37 @@ serve(async (req) => {
     }
 
     if (!prompt || typeof prompt !== "string") {
-      throw new Error("Prompt is required");
+      return new Response(
+        JSON.stringify({ error: "Prompt is required and must be a string" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const sanitizedPrompt = sanitizeInput(prompt.trim());
+
+    if (sanitizedPrompt.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Prompt cannot be empty" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (sanitizedPrompt.length > MAX_PROMPT_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: `Prompt must be ${MAX_PROMPT_LENGTH} characters or fewer` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate existing code for refinements
+    if (isRefinement && existingCode) {
+      const codeStr = JSON.stringify(existingCode);
+      if (codeStr.length > MAX_EXISTING_CODE_LENGTH) {
+        return new Response(
+          JSON.stringify({ error: "Existing code payload is too large" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     let systemPrompt: string;
@@ -39,6 +103,8 @@ Rules:
 5. Ensure responsive design is preserved
 6. Use vanilla JavaScript for interactivity
 7. Escape all quotes and special characters properly in the JSON strings
+8. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
+9. NEVER include inline event handlers that reference external URLs
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
 
@@ -53,7 +119,7 @@ ${existingCode.css}
 JavaScript:
 ${existingCode.js || "// No JavaScript"}
 
-Please apply these changes: ${prompt}`;
+Please apply these changes: ${sanitizedPrompt}`;
     } else {
       systemPrompt = `You are an expert UI developer. Generate clean, modern, and responsive UI components using HTML, CSS, and JavaScript.
 
@@ -71,10 +137,12 @@ Rules:
 8. Escape all quotes and special characters properly in the JSON strings
 9. The CSS should work standalone (no external dependencies)
 10. The HTML should be a complete component that fills the container
+11. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
+12. NEVER include inline event handlers that reference external URLs
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
 
-      userPrompt = `Generate a UI component for: ${prompt}`;
+      userPrompt = `Generate a UI component for: ${sanitizedPrompt}`;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -121,7 +189,6 @@ Remember: Respond with ONLY the JSON object, nothing else.`;
     // Parse the JSON response
     let uiCode;
     try {
-      // Try to extract JSON from the response (in case AI added extra text)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         uiCode = JSON.parse(jsonMatch[0]);
@@ -133,7 +200,6 @@ Remember: Respond with ONLY the JSON object, nothing else.`;
       throw new Error("Failed to parse AI response as JSON");
     }
 
-    // Validate the response structure
     if (!uiCode.html || !uiCode.css) {
       throw new Error("Invalid UI code structure");
     }
