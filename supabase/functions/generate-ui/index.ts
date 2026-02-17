@@ -8,10 +8,156 @@ const corsHeaders = {
 
 const MAX_PROMPT_LENGTH = 500;
 const MAX_EXISTING_CODE_LENGTH = 50000;
+const MAX_IMAGES_TO_GENERATE = 4;
 
-// Basic sanitization: strip control characters except newlines/tabs
 function sanitizeInput(input: string): string {
   return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+}
+
+// Extract image info from HTML: returns array of { src, alt, fullTag }
+function extractImages(html: string): Array<{ src: string; alt: string; fullMatch: string }> {
+  const imgRegex = /<img\s+[^>]*?src=["']([^"']+)["'][^>]*?>/gi;
+  const results: Array<{ src: string; alt: string; fullMatch: string }> = [];
+  let match;
+
+  while ((match = imgRegex.exec(html)) !== null) {
+    const fullMatch = match[0];
+    const src = match[1];
+    const altMatch = fullMatch.match(/alt=["']([^"']*)["']/i);
+    const alt = altMatch ? altMatch[1] : "";
+    results.push({ src, alt, fullMatch });
+  }
+
+  return results;
+}
+
+// Generate a single image using AI
+async function generateImage(
+  description: string,
+  apiKey: string
+): Promise<string | null> {
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [
+          {
+            role: "user",
+            content: `Generate a clean, professional image for a web UI: ${description}. The image should be high quality, well-lit, and suitable as a web component image. No text overlays.`,
+          },
+        ],
+        modalities: ["image", "text"],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Image generation failed:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    return imageUrl || null;
+  } catch (error) {
+    console.error("Image generation error:", error);
+    return null;
+  }
+}
+
+// Replace placeholder image URLs with AI-generated base64 images
+async function replaceImagesWithAI(
+  html: string,
+  uiContext: string,
+  apiKey: string
+): Promise<string> {
+  const images = extractImages(html);
+  if (images.length === 0) return html;
+
+  // Take up to MAX_IMAGES_TO_GENERATE images
+  const imagesToProcess = images.slice(0, MAX_IMAGES_TO_GENERATE);
+
+  // Generate all images in parallel
+  const generationPromises = imagesToProcess.map((img) => {
+    const description = img.alt
+      ? `${img.alt} (for a ${uiContext})`
+      : `A relevant image for a ${uiContext} web component`;
+    return generateImage(description, apiKey);
+  });
+
+  const generatedImages = await Promise.all(generationPromises);
+
+  // Replace src URLs with generated base64 data URIs
+  let updatedHtml = html;
+  for (let i = 0; i < imagesToProcess.length; i++) {
+    const base64Url = generatedImages[i];
+    if (base64Url) {
+      // Replace the src in the specific img tag
+      const originalSrc = imagesToProcess[i].src;
+      // Only replace the first occurrence of this src to handle duplicates correctly
+      updatedHtml = updatedHtml.replace(originalSrc, base64Url);
+    }
+  }
+
+  return updatedHtml;
+}
+
+function buildSystemPrompt(isRefinement: boolean): string {
+  if (isRefinement) {
+    return `You are an expert UI developer. You will be given existing HTML, CSS, and JavaScript code, and a request to modify it.
+
+IMPORTANT: You must respond with ONLY valid JSON in this exact format (no markdown, no code blocks, no extra text):
+{"html":"<your html here>","css":"<your css here>","js":"<your js here>"}
+
+Rules:
+1. Modify the existing code based on the user's request
+2. Keep the overall structure intact unless explicitly asked to change it
+3. Apply the requested changes precisely
+4. Maintain consistency with the existing design unless asked otherwise
+5. Ensure responsive design is preserved
+6. Use vanilla JavaScript for interactivity
+7. Escape all quotes and special characters properly in the JSON strings
+8. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
+9. NEVER include inline event handlers that reference external URLs
+10. For images, use https://picsum.photos/seed/{descriptive-name}/{width}/{height} as temporary placeholders. Use DESCRIPTIVE alt text that accurately describes what the image should show (e.g. alt="Professional headshot of a female software engineer" or alt="Modern minimalist office workspace"). The alt text will be used to generate real images.
+
+Remember: Respond with ONLY the JSON object, nothing else.`;
+  }
+
+  return `You are an expert UI developer. Generate clean, modern, and responsive UI components using HTML, CSS, and JavaScript.
+
+IMPORTANT: You must respond with ONLY valid JSON in this exact format (no markdown, no code blocks, no extra text):
+{"html":"<your html here>","css":"<your css here>","js":"<your js here>"}
+
+Rules:
+1. Generate complete, working UI components
+2. Use modern CSS with flexbox/grid
+3. Use a dark theme with these colors: background #0f172a, cards #1e293b, borders #334155, text #f8fafc, muted #94a3b8, accent #22d3ee
+4. Add hover effects and smooth transitions
+5. Make it responsive
+6. Include meaningful placeholder content
+7. Use vanilla JavaScript for interactivity
+8. Escape all quotes and special characters properly in the JSON strings
+9. The CSS should work standalone (no external dependencies)
+10. The HTML should be a complete component that fills the container
+11. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
+12. NEVER include inline event handlers that reference external URLs
+
+IMAGE RULES (CRITICAL):
+- Use https://picsum.photos/seed/{name}/{width}/{height} as temporary placeholder URLs for images
+- Size guidelines: avatars 80x80, profile photos 120x120, card images 400x300, hero banners 1200x600, thumbnails 200x200, product images 600x400
+- EVERY <img> tag MUST have a highly descriptive alt attribute that precisely describes the ideal image content
+- Examples of GOOD alt text: "Professional headshot of a young woman with brown hair smiling", "Aerial view of a modern city skyline at sunset", "Flat lay of a laptop, coffee cup, and notebook on a wooden desk"
+- Examples of BAD alt text: "Image 1", "Photo", "Avatar", "Placeholder"
+- The alt text will be used to generate AI images, so make it as descriptive and specific as possible
+- Include images generously in cards, profiles, heroes, galleries, and product sections
+- Use different seeds for different images to avoid duplicates
+
+Remember: Respond with ONLY the JSON object, nothing else.`;
 }
 
 serve(async (req) => {
@@ -75,7 +221,6 @@ serve(async (req) => {
       );
     }
 
-    // Validate existing code for refinements
     if (isRefinement && existingCode) {
       const codeStr = JSON.stringify(existingCode);
       if (codeStr.length > MAX_EXISTING_CODE_LENGTH) {
@@ -86,29 +231,10 @@ serve(async (req) => {
       }
     }
 
-    let systemPrompt: string;
+    const systemPrompt = buildSystemPrompt(!!isRefinement && !!existingCode);
     let userPrompt: string;
 
     if (isRefinement && existingCode) {
-      systemPrompt = `You are an expert UI developer. You will be given existing HTML, CSS, and JavaScript code, and a request to modify it.
-
-IMPORTANT: You must respond with ONLY valid JSON in this exact format (no markdown, no code blocks, no extra text):
-{"html":"<your html here>","css":"<your css here>","js":"<your js here>"}
-
-Rules:
-1. Modify the existing code based on the user's request
-2. Keep the overall structure intact unless explicitly asked to change it
-3. Apply the requested changes precisely
-4. Maintain consistency with the existing design unless asked otherwise
-5. Ensure responsive design is preserved
-6. Use vanilla JavaScript for interactivity
-7. Escape all quotes and special characters properly in the JSON strings
-8. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
-9. NEVER include inline event handlers that reference external URLs
-10. For images, ALWAYS use https://picsum.photos for placeholder images (e.g. https://picsum.photos/400/300, https://picsum.photos/seed/unique-name/400/300 for deterministic images). NEVER use broken image links.
-
-Remember: Respond with ONLY the JSON object, nothing else.`;
-
       userPrompt = `Here is the existing code:
 
 HTML:
@@ -122,41 +248,10 @@ ${existingCode.js || "// No JavaScript"}
 
 Please apply these changes: ${sanitizedPrompt}`;
     } else {
-      systemPrompt = `You are an expert UI developer. Generate clean, modern, and responsive UI components using HTML, CSS, and JavaScript.
-
-IMPORTANT: You must respond with ONLY valid JSON in this exact format (no markdown, no code blocks, no extra text):
-{"html":"<your html here>","css":"<your css here>","js":"<your js here>"}
-
-Rules:
-1. Generate complete, working UI components
-2. Use modern CSS with flexbox/grid
-3. Use a dark theme with these colors: background #0f172a, cards #1e293b, borders #334155, text #f8fafc, muted #94a3b8, accent #22d3ee
-4. Add hover effects and smooth transitions
-5. Make it responsive
-6. Include meaningful placeholder content
-7. Use vanilla JavaScript for interactivity
-8. Escape all quotes and special characters properly in the JSON strings
-9. The CSS should work standalone (no external dependencies)
-10. The HTML should be a complete component that fills the container
-11. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
-12. NEVER include inline event handlers that reference external URLs
-
-IMAGE RULES (CRITICAL):
-- ALWAYS use https://picsum.photos for ALL images. This is the ONLY allowed image source.
-- Use deterministic seeds for consistent images: https://picsum.photos/seed/{descriptive-name}/{width}/{height}
-- Choose seeds that describe the image context (e.g. seed/team-member-1, seed/product-laptop, seed/hero-sunset, seed/avatar-jane)
-- Size guidelines: avatars 80x80, profile photos 120x120, card images 400x300, hero banners 1200x600, thumbnails 200x200, product images 600x400, backgrounds 1920x1080
-- Use images GENEROUSLY - every card, profile, hero, product section, and gallery MUST have images
-- For team/people sections: use different seeds per person (seed/person-1, seed/person-2, etc.)
-- For product/portfolio: use contextual seeds (seed/product-shoes, seed/portfolio-web-1, etc.)
-- NEVER use placeholder.com, via.placeholder.com, or any other image service
-- NEVER leave broken image links - every <img> must have a working picsum.photos URL
-
-Remember: Respond with ONLY the JSON object, nothing else.`;
-
-      userPrompt = `Generate a visually rich UI component for: ${sanitizedPrompt}. Include relevant placeholder images where appropriate to make it look realistic and complete.`;
+      userPrompt = `Generate a visually rich UI component for: ${sanitizedPrompt}. Include relevant images with highly descriptive alt text where appropriate.`;
     }
 
+    // Step 1: Generate UI code
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -207,7 +302,7 @@ Remember: Respond with ONLY the JSON object, nothing else.`;
       } else {
         throw new Error("No JSON found in response");
       }
-    } catch (parseError) {
+    } catch (_parseError) {
       console.error("Failed to parse AI response:", content);
       throw new Error("Failed to parse AI response as JSON");
     }
@@ -216,9 +311,18 @@ Remember: Respond with ONLY the JSON object, nothing else.`;
       throw new Error("Invalid UI code structure");
     }
 
+    // Step 2: Replace placeholder images with AI-generated images
+    console.log("Starting AI image generation for UI...");
+    const enhancedHtml = await replaceImagesWithAI(
+      uiCode.html,
+      sanitizedPrompt,
+      LOVABLE_API_KEY
+    );
+    console.log("Image generation complete");
+
     return new Response(
       JSON.stringify({
-        html: uiCode.html,
+        html: enhancedHtml,
         css: uiCode.css,
         js: uiCode.js || "",
       }),
