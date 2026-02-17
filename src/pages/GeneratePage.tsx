@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUIStore } from "@/store/uiStore";
 import { useNavigate } from "react-router-dom";
 import { generateUI } from "@/lib/generateUI";
+import { useDbHistory } from "@/hooks/useDbHistory";
 import { toast } from "sonner";
 
 const examplePrompts = [
@@ -17,6 +18,7 @@ const examplePrompts = [
 export default function GeneratePage() {
   const [prompt, setPrompt] = useState("");
   const { isGenerating, setIsGenerating, setGeneratedUI, addToHistory } = useUIStore();
+  const { saveToDb } = useDbHistory();
   const navigate = useNavigate();
 
   const handleGenerate = async () => {
@@ -33,6 +35,7 @@ export default function GeneratePage() {
       };
       setGeneratedUI(uiData);
       addToHistory(uiData);
+      await saveToDb({ ...generatedCode, prompt });
       toast.success("UI generated successfully!");
       navigate("/preview");
     } catch (error) {
@@ -116,4 +119,3 @@ export default function GeneratePage() {
     </div>
   );
 }
-

@@ -1,11 +1,14 @@
-import { Clock, Trash2, Eye, Code2 } from "lucide-react";
+import { Clock, Trash2, Eye, Code2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/uiStore";
 import { useNavigate } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useDbHistory } from "@/hooks/useDbHistory";
+import { toast } from "sonner";
 
 export default function HistoryPage() {
   const { history, setGeneratedUI, removeFromHistory, clearHistory } = useUIStore();
+  const { deleteFromDb, clearDb } = useDbHistory();
   const navigate = useNavigate();
 
   const handleView = (item: typeof history[0]) => {
@@ -16,6 +19,18 @@ export default function HistoryPage() {
   const handleViewCode = (item: typeof history[0]) => {
     setGeneratedUI(item);
     navigate("/code");
+  };
+
+  const handleDelete = async (item: typeof history[0]) => {
+    removeFromHistory(item.timestamp);
+    await deleteFromDb(item.prompt);
+    toast.success("Generation removed");
+  };
+
+  const handleClearAll = async () => {
+    clearHistory();
+    await clearDb();
+    toast.success("History cleared");
   };
 
   const formatDate = (timestamp: number) => {
@@ -50,7 +65,7 @@ export default function HistoryPage() {
             Review and reuse your previously generated UI components
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={clearHistory}>
+        <Button variant="outline" size="sm" onClick={handleClearAll}>
           <Trash2 className="w-4 h-4 mr-2" />
           Clear All
         </Button>
@@ -58,7 +73,7 @@ export default function HistoryPage() {
 
       <ScrollArea className="flex-1">
         <div className="grid gap-4">
-          {history.map((item, index) => (
+          {history.map((item) => (
             <div
               key={item.timestamp}
               className="p-4 rounded-lg border border-border bg-card hover:border-primary/50 transition-colors"
@@ -82,7 +97,7 @@ export default function HistoryPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => removeFromHistory(item.timestamp)}
+                    onClick={() => handleDelete(item)}
                   >
                     <Trash2 className="w-4 h-4 text-destructive" />
                   </Button>

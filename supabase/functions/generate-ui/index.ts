@@ -140,12 +140,21 @@ Rules:
 10. The HTML should be a complete component that fills the container
 11. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
 12. NEVER include inline event handlers that reference external URLs
-13. For images, ALWAYS use https://picsum.photos for placeholder images (e.g. https://picsum.photos/400/300 for a 400x300 image, https://picsum.photos/seed/unique-name/400/300 for deterministic images). Use appropriate sizes for each context (avatars: 80x80, cards: 400x300, heroes: 1200x600, thumbnails: 200x200). NEVER use broken image links or placeholder.com.
-14. Use realistic, high-quality placeholder images generously - include images for avatars, cards, hero sections, product images, backgrounds, etc. Make the UI look visually rich and complete.
+
+IMAGE RULES (CRITICAL):
+- ALWAYS use https://picsum.photos for ALL images. This is the ONLY allowed image source.
+- Use deterministic seeds for consistent images: https://picsum.photos/seed/{descriptive-name}/{width}/{height}
+- Choose seeds that describe the image context (e.g. seed/team-member-1, seed/product-laptop, seed/hero-sunset, seed/avatar-jane)
+- Size guidelines: avatars 80x80, profile photos 120x120, card images 400x300, hero banners 1200x600, thumbnails 200x200, product images 600x400, backgrounds 1920x1080
+- Use images GENEROUSLY - every card, profile, hero, product section, and gallery MUST have images
+- For team/people sections: use different seeds per person (seed/person-1, seed/person-2, etc.)
+- For product/portfolio: use contextual seeds (seed/product-shoes, seed/portfolio-web-1, etc.)
+- NEVER use placeholder.com, via.placeholder.com, or any other image service
+- NEVER leave broken image links - every <img> must have a working picsum.photos URL
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
 
-      userPrompt = `Generate a UI component for: ${sanitizedPrompt}`;
+      userPrompt = `Generate a visually rich UI component for: ${sanitizedPrompt}. Include relevant placeholder images where appropriate to make it look realistic and complete.`;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
