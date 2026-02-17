@@ -21,6 +21,7 @@ import { QuickGeneratePanel } from "./QuickGeneratePanel";
 import { useUIStore } from "@/store/uiStore";
 import { generateUI } from "@/lib/generateUI";
 import { toast } from "sonner";
+import { useDbHistory } from "@/hooks/useDbHistory";
 
 const navItems = [
   { title: "Generate", url: "/", icon: Wand2, description: "Create UI from prompts" },
@@ -35,6 +36,7 @@ export function AppSidebar() {
   const [quickGenerateOpen, setQuickGenerateOpen] = useState(false);
   const navigate = useNavigate();
   const { setGeneratedUI, setIsGenerating, addToHistory } = useUIStore();
+  const { saveToDb } = useDbHistory();
 
   const handleQuickPrompt = async (prompt: string) => {
     setQuickGenerateOpen(false);
@@ -50,6 +52,7 @@ export function AppSidebar() {
       };
       setGeneratedUI(uiData);
       addToHistory(uiData);
+      await saveToDb({ ...generatedCode, prompt });
       toast.success("UI generated successfully!");
       navigate("/preview");
     } catch (error) {

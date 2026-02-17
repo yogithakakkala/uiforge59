@@ -5,6 +5,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useNavigate } from "react-router-dom";
 import { PreviewEditBar } from "@/components/PreviewEditBar";
 import { refineUI } from "@/lib/generateUI";
+import { useDbHistory } from "@/hooks/useDbHistory";
 import { toast } from "sonner";
 import JSZip from "jszip";
 
@@ -16,6 +17,7 @@ const viewports = [
 
 export default function PreviewPage() {
   const { generatedUI, hasHydrated, setGeneratedUI, addToHistory } = useUIStore();
+  const { saveToDb } = useDbHistory();
   const navigate = useNavigate();
   const [activeViewport, setActiveViewport] = useState("desktop");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -74,6 +76,7 @@ export default function PreviewPage() {
       
       setGeneratedUI(updatedUI);
       addToHistory(updatedUI);
+      await saveToDb({ ...refinedCode, prompt: updatedUI.prompt });
       setIframeKey((k) => k + 1);
       toast.success("Preview updated!");
     } catch (error) {
