@@ -8,105 +8,27 @@ const corsHeaders = {
 
 const MAX_PROMPT_LENGTH = 500;
 const MAX_EXISTING_CODE_LENGTH = 50000;
-const MAX_IMAGES_TO_GENERATE = 4;
-
 function sanitizeInput(input: string): string {
   return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 }
 
-// Extract image info from HTML: returns array of { src, alt, fullTag }
-function extractImages(html: string): Array<{ src: string; alt: string; fullMatch: string }> {
-  const imgRegex = /<img\s+[^>]*?src=["']([^"']+)["'][^>]*?>/gi;
-  const results: Array<{ src: string; alt: string; fullMatch: string }> = [];
-  let match;
-
-  while ((match = imgRegex.exec(html)) !== null) {
-    const fullMatch = match[0];
-    const src = match[1];
-    const altMatch = fullMatch.match(/alt=["']([^"']*)["']/i);
-    const alt = altMatch ? altMatch[1] : "";
-    results.push({ src, alt, fullMatch });
-  }
-
-  return results;
-}
-
-// Generate a single image using AI
-async function generateImage(
-  description: string,
-  apiKey: string
-): Promise<string | null> {
-  try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [
-          {
-            role: "user",
-            content: `Generate a clean, professional image for a web UI: ${description}. The image should be high quality, well-lit, and suitable as a web component image. No text overlays.`,
-          },
-        ],
-        modalities: ["image", "text"],
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Image generation failed:", response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    return imageUrl || null;
-  } catch (error) {
-    console.error("Image generation error:", error);
-    return null;
-  }
-}
-
-// Replace placeholder image URLs with AI-generated base64 images
-async function replaceImagesWithAI(
-  html: string,
-  uiContext: string,
-  apiKey: string
-): Promise<string> {
-  const images = extractImages(html);
-  if (images.length === 0) return html;
-
-  // Take up to MAX_IMAGES_TO_GENERATE images
-  const imagesToProcess = images.slice(0, MAX_IMAGES_TO_GENERATE);
-
-  // Generate all images in parallel
-  const generationPromises = imagesToProcess.map((img) => {
-    const description = img.alt
-      ? `${img.alt} (for a ${uiContext})`
-      : `A relevant image for a ${uiContext} web component`;
-    return generateImage(description, apiKey);
-  });
-
-  const generatedImages = await Promise.all(generationPromises);
-
-  // Replace src URLs with generated base64 data URIs
-  let updatedHtml = html;
-  for (let i = 0; i < imagesToProcess.length; i++) {
-    const base64Url = generatedImages[i];
-    if (base64Url) {
-      // Replace the src in the specific img tag
-      const originalSrc = imagesToProcess[i].src;
-      // Only replace the first occurrence of this src to handle duplicates correctly
-      updatedHtml = updatedHtml.replace(originalSrc, base64Url);
-    }
-  }
-
-  return updatedHtml;
-}
-
 function buildSystemPrompt(isRefinement: boolean): string {
+  const imageRules = `
+IMAGE RULES (CRITICAL - for fast loading):
+- Use https://images.unsplash.com/photo-{id}?w={width}&h={height}&fit=crop&auto=format as image sources
+- Here are REAL Unsplash photo IDs to use (pick the most relevant one for each context):
+  PEOPLE/PORTRAITS: 1494790108377-be9c29b29330, 1507003211169-0a1dd7228f2d, 1438761681033-6461ffad8d80, 1472099645785-5658abf4ff4e, 1534528741775-53994a69daeb, 1580489944761-15a19d654956
+  TECHNOLOGY/OFFICE: 1498050108023-c5249f4df085, 1517694712202-14dd9538aa97, 1531297484001-80022131f5a1, 1460925895917-afdab827c52f, 1504384308090-c894fdcc538d
+  FOOD/RESTAURANT: 1504674900247-0877df9cc836, 1414235077428-338989a2e8c0, 1555396273-367ea4eb4db5, 1517248135467-4c7edcad34c4
+  NATURE/LANDSCAPE: 1506744038136-46273834b3fb, 1470071459604-3b5ec3a7fe05, 1441974231531-c6227db76b6e, 1469474968028-56623f02e42e
+  BUSINESS/FINANCE: 1460925895917-afdab827c52f, 1553484771-047a44eee27a, 1454165804606-c3d57bc86b40
+  PRODUCTS/ECOMMERCE: 1505740420928-5e560c06d30e, 1523275335684-37898b6baf30, 1526170375885-4d8ecf77b99f, 1491553895911-0055eca6402d
+  ABSTRACT/BACKGROUNDS: 1557683316094-a157d7e0e4a, 1558618666-fcd25c85f68e, 1507525428034-b723cf961d3e
+- Size guidelines: avatars ?w=80&h=80, cards ?w=400&h=300, heroes ?w=1200&h=600, thumbnails ?w=200&h=200, products ?w=600&h=400
+- Add &fit=crop&auto=format to ALL image URLs
+- Use descriptive alt text for accessibility
+- Use DIFFERENT photo IDs for each image to avoid duplicates`;
+
   if (isRefinement) {
     return `You are an expert UI developer. You will be given existing HTML, CSS, and JavaScript code, and a request to modify it.
 
@@ -123,7 +45,7 @@ Rules:
 7. Escape all quotes and special characters properly in the JSON strings
 8. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
 9. NEVER include inline event handlers that reference external URLs
-10. For images, use https://picsum.photos/seed/{descriptive-name}/{width}/{height} as temporary placeholders. Use DESCRIPTIVE alt text that accurately describes what the image should show (e.g. alt="Professional headshot of a female software engineer" or alt="Modern minimalist office workspace"). The alt text will be used to generate real images.
+${imageRules}
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
   }
@@ -146,16 +68,7 @@ Rules:
 10. The HTML should be a complete component that fills the container
 11. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
 12. NEVER include inline event handlers that reference external URLs
-
-IMAGE RULES (CRITICAL):
-- Use https://picsum.photos/seed/{name}/{width}/{height} as temporary placeholder URLs for images
-- Size guidelines: avatars 80x80, profile photos 120x120, card images 400x300, hero banners 1200x600, thumbnails 200x200, product images 600x400
-- EVERY <img> tag MUST have a highly descriptive alt attribute that precisely describes the ideal image content
-- Examples of GOOD alt text: "Professional headshot of a young woman with brown hair smiling", "Aerial view of a modern city skyline at sunset", "Flat lay of a laptop, coffee cup, and notebook on a wooden desk"
-- Examples of BAD alt text: "Image 1", "Photo", "Avatar", "Placeholder"
-- The alt text will be used to generate AI images, so make it as descriptive and specific as possible
-- Include images generously in cards, profiles, heroes, galleries, and product sections
-- Use different seeds for different images to avoid duplicates
+${imageRules}
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
 }
@@ -311,18 +224,9 @@ Please apply these changes: ${sanitizedPrompt}`;
       throw new Error("Invalid UI code structure");
     }
 
-    // Step 2: Replace placeholder images with AI-generated images
-    console.log("Starting AI image generation for UI...");
-    const enhancedHtml = await replaceImagesWithAI(
-      uiCode.html,
-      sanitizedPrompt,
-      LOVABLE_API_KEY
-    );
-    console.log("Image generation complete");
-
     return new Response(
       JSON.stringify({
-        html: enhancedHtml,
+        html: uiCode.html,
         css: uiCode.css,
         js: uiCode.js || "",
       }),
