@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const MAX_PROMPT_LENGTH = 500;
-const MAX_EXISTING_CODE_LENGTH = 50000;
+const MAX_EXISTING_CODE_LENGTH = 500000;
 const MAX_AI_IMAGES = 2;
 
 function sanitizeInput(input: string): string {
@@ -181,13 +181,21 @@ serve(async (req) => {
     }
 
     if (isRefinement && existingCode) {
-      const codeStr = JSON.stringify(existingCode);
-      if (codeStr.length > MAX_EXISTING_CODE_LENGTH) {
+      // Strip base64 data URIs before size check (AI images inflate payload)
+      const stripBase64 = (s: string) => s ? s.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, 'PLACEHOLDER_IMG') : '';
+      const strippedCode = JSON.stringify({
+        html: stripBase64(existingCode.html || ''),
+        css: existingCode.css || '',
+        js: existingCode.js || '',
+      });
+      if (strippedCode.length > MAX_EXISTING_CODE_LENGTH) {
         return new Response(
           JSON.stringify({ error: "Existing code payload is too large" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      // Also strip base64 from the actual code sent to AI to save tokens
+      existingCode.html = stripBase64(existingCode.html || '');
     }
 
     const systemPrompt = buildSystemPrompt(!!isRefinement && !!existingCode);
