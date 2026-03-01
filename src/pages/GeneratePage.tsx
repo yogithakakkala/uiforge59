@@ -66,15 +66,16 @@ export default function GeneratePage() {
         {/* Prompt Input */}
         <div className="gradient-border p-1 mb-6 animate-fade-in" style={{ animationDelay: "0.1s" }}>
           <div className="bg-card rounded-lg p-4">
-            <Textarea
+             <Textarea
               placeholder="Describe the UI you want to create... e.g., 'A modern contact form with name, email, and message fields'"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => setPrompt(e.target.value.slice(0, 1000))}
+              maxLength={1000}
               className="min-h-[120px] bg-transparent border-0 focus-visible:ring-0 resize-none text-base placeholder:text-muted-foreground/60"
             />
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
               <p className="text-xs text-muted-foreground">
-                {prompt.length}/500 characters
+                {prompt.length}/1000 characters
               </p>
               <Button
                 onClick={handleGenerate}

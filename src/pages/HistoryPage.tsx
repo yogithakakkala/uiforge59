@@ -1,10 +1,30 @@
-import { Clock, Trash2, Eye, Code2, Loader2 } from "lucide-react";
+import { useMemo } from "react";
+import { Clock, Trash2, Eye, Code2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/uiStore";
 import { useNavigate } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDbHistory } from "@/hooks/useDbHistory";
 import { toast } from "sonner";
+
+function HistoryPreview({ html, css, js }: { html: string; css: string; js: string }) {
+  const srcDoc = useMemo(() => `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%;font-family:system-ui,sans-serif}${css}</style>
+</head><body>${html}<script>try{${js}}catch(e){}</script></body></html>`, [html, css, js]);
+
+  return (
+    <div className="w-full aspect-video rounded-md overflow-hidden border border-border bg-muted/30 mb-3">
+      <iframe
+        srcDoc={srcDoc}
+        className="w-full h-full border-0 pointer-events-none"
+        sandbox="allow-scripts"
+        title="Preview"
+        loading="lazy"
+      />
+    </div>
+  );
+}
 
 export default function HistoryPage() {
   const { history, setGeneratedUI, removeFromHistory, clearHistory } = useUIStore();
@@ -72,12 +92,13 @@ export default function HistoryPage() {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2">
           {history.map((item) => (
             <div
               key={item.timestamp}
               className="p-4 rounded-lg border border-border bg-card hover:border-primary/50 transition-colors"
             >
+              <HistoryPreview html={item.html} css={item.css} js={item.js} />
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{item.prompt}</p>

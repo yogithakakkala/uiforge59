@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const MAX_PROMPT_LENGTH = 500;
+const MAX_PROMPT_LENGTH = 1000;
 const MAX_EXISTING_CODE_LENGTH = 500000;
 const MAX_AI_IMAGES = 2;
 
