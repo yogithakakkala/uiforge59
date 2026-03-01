@@ -8,55 +8,12 @@ const corsHeaders = {
 
 const MAX_PROMPT_LENGTH = 1000;
 const MAX_EXISTING_CODE_LENGTH = 500000;
-const MAX_AI_IMAGES = 2;
+
 
 function sanitizeInput(input: string): string {
   return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 }
 
-function extractImages(html: string): Array<{ src: string; alt: string }> {
-  const imgRegex = /<img\s+[^>]*?src=["']([^"']+)["'][^>]*?>/gi;
-  const results: Array<{ src: string; alt: string }> = [];
-  let match;
-  while ((match = imgRegex.exec(html)) !== null) {
-    const fullMatch = match[0];
-    const src = match[1];
-    const altMatch = fullMatch.match(/alt=["']([^"']*)["']/i);
-    results.push({ src, alt: altMatch ? altMatch[1] : "" });
-  }
-  return results;
-}
-
-async function generateImage(description: string, apiKey: string): Promise<string | null> {
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: `Generate a clean, professional web image: ${description}. High quality, no text overlays.` }],
-        modalities: ["image", "text"],
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
-  } catch { return null; }
-}
-
-async function enhanceTopImages(html: string, context: string, apiKey: string): Promise<string> {
-  const images = extractImages(html);
-  if (images.length === 0) return html;
-  const toProcess = images.slice(0, MAX_AI_IMAGES);
-  const results = await Promise.all(
-    toProcess.map(img => generateImage(img.alt || `Image for ${context}`, apiKey))
-  );
-  let out = html;
-  for (let i = 0; i < toProcess.length; i++) {
-    if (results[i]) out = out.replace(toProcess[i].src, results[i]!);
-  }
-  return out;
-}
 
 function buildSystemPrompt(isRefinement: boolean): string {
   const imageRules = `
@@ -278,12 +235,9 @@ Please apply these changes: ${sanitizedPrompt}`;
       throw new Error("Invalid UI code structure");
     }
 
-    // Enhance top 2 images with AI (fast, parallel)
-    const enhancedHtml = await enhanceTopImages(uiCode.html, sanitizedPrompt, LOVABLE_API_KEY);
-
     return new Response(
       JSON.stringify({
-        html: enhancedHtml,
+        html: uiCode.html,
         css: uiCode.css,
         js: uiCode.js || "",
       }),
