@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Monitor, Tablet, Smartphone, RotateCcw, Maximize2, Download } from "lucide-react";
+import { Monitor, Tablet, Smartphone, RotateCcw, Maximize2, Minimize2, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/uiStore";
 import { useNavigate } from "react-router-dom";
@@ -243,8 +243,9 @@ Generated on: ${new Date().toLocaleString()}
               variant="outline"
               size="icon"
               onClick={() => setIsFullscreen(!isFullscreen)}
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
-              <Maximize2 className="w-4 h-4" />
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>
           </div>
         </div>
@@ -252,10 +253,22 @@ Generated on: ${new Date().toLocaleString()}
         {/* Preview Frame */}
         <div
           className={`flex-1 rounded-lg border border-border bg-card overflow-hidden animate-fade-in ${
-            isFullscreen ? "fixed inset-4 z-50" : ""
+            isFullscreen ? "fixed inset-0 z-50 rounded-none" : ""
           }`}
           style={{ animationDelay: "0.1s" }}
         >
+          {isFullscreen && (
+            <div className="absolute top-4 right-4 z-10">
+              <Button
+                variant="secondary"
+                size="icon"
+                onClick={() => setIsFullscreen(false)}
+                className="shadow-lg"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
           <div className="h-full flex items-center justify-center bg-muted/30 p-4">
             <div
               className="h-full bg-background rounded-lg overflow-hidden shadow-2xl transition-all duration-300"
