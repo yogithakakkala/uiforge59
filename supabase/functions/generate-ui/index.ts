@@ -8,42 +8,72 @@ const corsHeaders = {
 
 const MAX_PROMPT_LENGTH = 1000;
 const MAX_EXISTING_CODE_LENGTH = 500000;
-
+const MAX_AI_IMAGES = 2;
 
 function sanitizeInput(input: string): string {
   return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 }
 
+function extractImages(html: string): Array<{ src: string; alt: string }> {
+  const imgRegex = /<img\s+[^>]*?src=["']([^"']+)["'][^>]*?>/gi;
+  const results: Array<{ src: string; alt: string }> = [];
+  let match;
+  while ((match = imgRegex.exec(html)) !== null) {
+    const fullMatch = match[0];
+    const src = match[1];
+    const altMatch = fullMatch.match(/alt=["']([^"']*)["']/i);
+    results.push({ src, alt: altMatch ? altMatch[1] : "" });
+  }
+  return results;
+}
+
+async function generateImage(description: string, apiKey: string): Promise<string | null> {
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [{ role: "user", content: `Generate a clean, professional web image: ${description}. High quality, no text overlays.` }],
+        modalities: ["image", "text"],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
+  } catch { return null; }
+}
+
+async function enhanceTopImages(html: string, context: string, apiKey: string): Promise<string> {
+  const images = extractImages(html);
+  if (images.length === 0) return html;
+  const toProcess = images.slice(0, MAX_AI_IMAGES);
+  const results = await Promise.all(
+    toProcess.map(img => generateImage(img.alt || `Image for ${context}`, apiKey))
+  );
+  let out = html;
+  for (let i = 0; i < toProcess.length; i++) {
+    if (results[i]) out = out.replace(toProcess[i].src, results[i]!);
+  }
+  return out;
+}
 
 function buildSystemPrompt(isRefinement: boolean): string {
   const imageRules = `
-IMAGE RULES (CRITICAL - use contextually accurate images):
+IMAGE RULES (CRITICAL - for fast loading):
 - Use https://images.unsplash.com/photo-{id}?w={width}&h={height}&fit=crop&auto=format as image sources
-- IMPORTANT: Pick the photo ID that BEST MATCHES the specific context of the image. Read the categories carefully:
-  PEOPLE - MALE PROFESSIONALS: 1507003211169-0a1dd7228f2d, 1472099645785-5658abf4ff4e, 1560250097-0b93528c311a
-  PEOPLE - FEMALE PROFESSIONALS: 1494790108377-be9c29b29330, 1438761681033-6461ffad8d80, 1534528741775-53994a69daeb, 1580489944761-15a19d654956
-  PEOPLE - TEAMS/GROUPS: 1522071820081-009f0129c71c, 1600880292203-757bb62b4baf, 1552664730-d307ca884978
-  TECH - LAPTOPS/CODING: 1498050108023-c5249f4df085, 1517694712202-14dd9538aa97, 1461749280684-dccba630e2f6
-  TECH - DEVICES/GADGETS: 1531297484001-80022131f5a1, 1504384308090-c894fdcc538d, 1519389950473-47ba0277781c
-  FOOD - DISHES: 1504674900247-0877df9cc836, 1414235077428-338989a2e8c0, 1555396273-367ea4eb4db5
-  FOOD - DRINKS/COFFEE: 1509042239860-f550ce710b93, 1495474472287-4d71bcdd2085, 1517248135467-4c7edcad34c4
-  NATURE - MOUNTAINS: 1506744038136-46273834b3fb, 1464822759023-fed622ff2c3b
-  NATURE - OCEAN/BEACH: 1507525428034-b723cf961d3e, 1505228395891-9a51e7e86bf6
-  NATURE - FOREST/GREEN: 1441974231531-c6227db76b6e, 1470071459604-3b5ec3a7fe05
-  BUSINESS - OFFICE: 1460925895917-afdab827c52f, 1497366216548-37526070297c
-  BUSINESS - CHARTS/DATA: 1553484771-047a44eee27a, 1454165804606-c3d57bc86b40
-  PRODUCTS - FASHION: 1523275335684-37898b6baf30, 1491553895911-0055eca6402d
-  PRODUCTS - ELECTRONICS: 1505740420928-5e560c06d30e, 1526170375885-4d8ecf77b99f
-  PRODUCTS - FITNESS: 1571019613454-1cb2f99b2d8b, 1517836357463-d25dfeac3438
-  INTERIOR - LIVING SPACES: 1502672260266-1c1ef2d93688, 1586023492125-27b2c045efd7
-  MEDICAL/HEALTH: 1576091160399-112ba8d25d1d, 1559757175-5700dde675bc
-  EDUCATION: 1503676260728-1c00da094a0b, 1524995997946-a1c6e315a68d
-  TRAVEL: 1488646953014-85cb44e25828, 1476514525535-07fb3b4ae5f1
-- Size guidelines: avatars ?w=80&h=80, cards ?w=400&h=300, heroes ?w=1200&h=600, thumbnails ?w=200&h=200, products ?w=600&h=400, backgrounds ?w=1920&h=1080
+- Here are REAL Unsplash photo IDs to use (pick the most relevant one for each context):
+  PEOPLE/PORTRAITS: 1494790108377-be9c29b29330, 1507003211169-0a1dd7228f2d, 1438761681033-6461ffad8d80, 1472099645785-5658abf4ff4e, 1534528741775-53994a69daeb, 1580489944761-15a19d654956
+  TECHNOLOGY/OFFICE: 1498050108023-c5249f4df085, 1517694712202-14dd9538aa97, 1531297484001-80022131f5a1, 1460925895917-afdab827c52f, 1504384308090-c894fdcc538d
+  FOOD/RESTAURANT: 1504674900247-0877df9cc836, 1414235077428-338989a2e8c0, 1555396273-367ea4eb4db5, 1517248135467-4c7edcad34c4
+  NATURE/LANDSCAPE: 1506744038136-46273834b3fb, 1470071459604-3b5ec3a7fe05, 1441974231531-c6227db76b6e, 1469474968028-56623f02e42e
+  BUSINESS/FINANCE: 1460925895917-afdab827c52f, 1553484771-047a44eee27a, 1454165804606-c3d57bc86b40
+  PRODUCTS/ECOMMERCE: 1505740420928-5e560c06d30e, 1523275335684-37898b6baf30, 1526170375885-4d8ecf77b99f, 1491553895911-0055eca6402d
+  ABSTRACT/BACKGROUNDS: 1557683316094-a157d7e0e4a, 1558618666-fcd25c85f68e, 1507525428034-b723cf961d3e
+- Size guidelines: avatars ?w=80&h=80, cards ?w=400&h=300, heroes ?w=1200&h=600, thumbnails ?w=200&h=200, products ?w=600&h=400
 - Add &fit=crop&auto=format to ALL image URLs
 - Use descriptive alt text for accessibility
-- Use DIFFERENT photo IDs for each image — NEVER repeat the same ID on a page
-- Match the image category to what the image is ACTUALLY showing (e.g., a doctor card should use MEDICAL, not PEOPLE)`;
+- Use DIFFERENT photo IDs for each image to avoid duplicates`;
 
   if (isRefinement) {
     return `You are an expert UI developer. You will be given existing HTML, CSS, and JavaScript code, and a request to modify it.
@@ -248,9 +278,12 @@ Please apply these changes: ${sanitizedPrompt}`;
       throw new Error("Invalid UI code structure");
     }
 
+    // Enhance top 2 images with AI (fast, parallel)
+    const enhancedHtml = await enhanceTopImages(uiCode.html, sanitizedPrompt, LOVABLE_API_KEY);
+
     return new Response(
       JSON.stringify({
-        html: uiCode.html,
+        html: enhancedHtml,
         css: uiCode.css,
         js: uiCode.js || "",
       }),
