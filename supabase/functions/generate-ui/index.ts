@@ -8,48 +8,24 @@ const corsHeaders = {
 
 const MAX_PROMPT_LENGTH = 1000;
 const MAX_EXISTING_CODE_LENGTH = 500000;
-
+const MAX_AI_IMAGES = 3;
 
 function sanitizeInput(input: string): string {
   return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 }
 
-
 function buildSystemPrompt(isRefinement: boolean): string {
   const imageRules = `
-IMAGE RULES (MANDATORY — follow exactly):
-- For ALL images, use this URL pattern: https://images.unsplash.com/photo-{id}?w={width}&h={height}&fit=crop&auto=format
-- You MUST select photo IDs ONLY from the list below. Pick the ID whose category EXACTLY matches the image's visible subject:
-
-  DOCTORS/MEDICAL STAFF: 1559839734-2b71ea197ec2, 1612349317150-e413f6a5b16d, 1622253694242-abeb37a33b97
-  HOSPITAL/CLINIC: 1519494026892-80bbd2d6fd0d, 1516549655169-df83a0774514, 1538108149393-fbbd81895907
-  MEDICAL EQUIPMENT: 1581595220892-b0739db3ba8c, 1530497610245-94d3c16cda28, 1551076805-e1869033e561
-  MALE PROFESSIONAL: 1507003211169-0a1dd7228f2d, 1472099645785-5658abf4ff4e, 1560250097-0b93528c311a, 1500648767791-00dcc994a43e
-  FEMALE PROFESSIONAL: 1494790108377-be9c29b29330, 1438761681033-6461ffad8d80, 1573496359142-b8d87734a5a2, 1580489944761-15a19d654956
-  TEAM/GROUP: 1522071820081-009f0129c71c, 1600880292203-757bb62b4baf, 1552664730-d307ca884978
-  LAPTOP/CODING: 1498050108023-c5249f4df085, 1517694712202-14dd9538aa97, 1461749280684-dccba630e2f6
-  SMARTPHONE/DEVICE: 1531297484001-80022131f5a1, 1504384308090-c894fdcc538d, 1519389950473-47ba0277781c
-  FOOD/DISHES: 1504674900247-0877df9cc836, 1414235077428-338989a2e8c0, 1555396273-367ea4eb4db5, 1567620905862-fe4f39cdb0e0
-  COFFEE/DRINKS: 1509042239860-f550ce710b93, 1495474472287-4d71bcdd2085, 1517248135467-4c7edcad34c4
-  MOUNTAINS: 1506744038136-46273834b3fb, 1464822759023-fed622ff2c3b
-  OCEAN/BEACH: 1507525428034-b723cf961d3e, 1505228395891-9a51e7e86bf6
-  FOREST: 1441974231531-c6227db76b6e, 1470071459604-3b5ec3a7fe05
-  OFFICE/WORKSPACE: 1460925895917-afdab827c52f, 1497366216548-37526070297c, 1497366811353-6870744d04b2
-  CHARTS/ANALYTICS: 1553484771-047a44eee27a, 1454165804606-c3d57bc86b40, 1551288049-bebda4e38f71
-  FASHION/CLOTHING: 1523275335684-37898b6baf30, 1491553895911-0055eca6402d, 1558171813-4c2ab6e9235c
-  ELECTRONICS: 1505740420928-5e560c06d30e, 1526170375885-4d8ecf77b99f
-  FITNESS/GYM: 1571019613454-1cb2f99b2d8b, 1517836357463-d25dfeac3438, 1534438327276-14e5300c3a48
-  INTERIOR/HOME: 1502672260266-1c1ef2d93688, 1586023492125-27b2c045efd7, 1618221195710-dd6b41faaea6
-  EDUCATION/LEARNING: 1503676260728-1c00da094a0b, 1524995997946-a1c6e315a68d, 1523050854058-8df90110c9f1
-  TRAVEL/ADVENTURE: 1488646953014-85cb44e25828, 1476514525535-07fb3b4ae5f1, 1469854523086-cc02fe5d8800
-  CAR/AUTOMOTIVE: 1494976388531-d1058494cdd8, 1503376780353-7e6692767b70, 1552519507-da3b142c6e3b
-  PETS/ANIMALS: 1587300003388-59208cc962cb, 1548199973-03cce0bbc87b, 1425082661705-1834bfd09dca
-  MUSIC/CONCERT: 1511671782779-c97d3d27a1d4, 1514320291840-2e0a9bf2a9ae
-  BABY/CHILDREN: 1519340241574-2cec6aef0c01, 1503454537195-1dcabb73ffb9
-
-- SIZE: avatars ?w=80&h=80, cards ?w=400&h=300, heroes ?w=1200&h=600, thumbnails ?w=200&h=200, products ?w=600&h=400
-- NEVER repeat the same photo ID on a page
-- CRITICAL: A doctor profile MUST use DOCTORS/MEDICAL STAFF IDs. A dashboard hero about health MUST use HOSPITAL/CLINIC. Match the VISIBLE SUBJECT, not the page topic.`;
+IMAGE RULES (MANDATORY):
+- For images, use placeholder URLs in this exact format: https://placeholder.img/{index}
+  where {index} is 1, 2, 3, etc. Use at most ${MAX_AI_IMAGES} images.
+- Each <img> tag MUST have a highly descriptive alt text that describes EXACTLY what the image should show.
+  Example: alt="A smiling female doctor in a white lab coat with a stethoscope, standing in a modern clinic"
+  Example: alt="A plate of fresh sushi rolls with wasabi and ginger on a dark wooden table"
+  Example: alt="A sleek black sports car parked on a mountain road at sunset"
+- The alt text is CRITICAL — it will be used to generate the actual image. Be specific about:
+  subject, setting, lighting, colors, mood, style.
+- Size the images appropriately: avatars 80x80, cards 400x300, heroes 1200x600, products 600x400.`;
 
   if (isRefinement) {
     return `You are an expert UI developer. You will be given existing HTML, CSS, and JavaScript code, and a request to modify it.
@@ -93,6 +69,59 @@ Rules:
 ${imageRules}
 
 Remember: Respond with ONLY the JSON object, nothing else.`;
+}
+
+// Extract placeholder image URLs and their alt texts from HTML
+function extractImagePlaceholders(html: string): { placeholder: string; alt: string }[] {
+  const results: { placeholder: string; alt: string }[] = [];
+  const imgRegex = /<img[^>]*src=["'](https:\/\/placeholder\.img\/\d+)["'][^>]*>/gi;
+  let match;
+  while ((match = imgRegex.exec(html)) !== null) {
+    const src = match[1];
+    const altMatch = match[0].match(/alt=["']([^"']*)["']/i);
+    const alt = altMatch?.[1] || "A relevant image";
+    if (results.length < MAX_AI_IMAGES) {
+      results.push({ placeholder: src, alt });
+    }
+  }
+  // Also check for src after alt
+  const imgRegex2 = /<img[^>]*alt=["']([^"']*)["'][^>]*src=["'](https:\/\/placeholder\.img\/\d+)["'][^>]*>/gi;
+  while ((match = imgRegex2.exec(html)) !== null) {
+    const src = match[2];
+    const alt = match[1] || "A relevant image";
+    if (!results.find(r => r.placeholder === src) && results.length < MAX_AI_IMAGES) {
+      results.push({ placeholder: src, alt });
+    }
+  }
+  return results;
+}
+
+// Generate a single image using nano banana
+async function generateImage(alt: string, apiKey: string): Promise<string | null> {
+  try {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [{ role: "user", content: `Generate a high-quality, photorealistic image: ${alt}. Make it vivid and professional.` }],
+        modalities: ["image", "text"],
+      }),
+    });
+    if (!resp.ok) {
+      console.error("Image gen failed:", resp.status);
+      return null;
+    }
+    const data = await resp.json();
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    return imageUrl || null;
+  } catch (e) {
+    console.error("Image gen error:", e);
+    return null;
+  }
 }
 
 serve(async (req) => {
@@ -157,7 +186,6 @@ serve(async (req) => {
     }
 
     if (isRefinement && existingCode) {
-      // Strip base64 data URIs before size check (AI images inflate payload)
       const stripBase64 = (s: string) => s ? s.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, 'PLACEHOLDER_IMG') : '';
       const strippedCode = JSON.stringify({
         html: stripBase64(existingCode.html || ''),
@@ -170,7 +198,6 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      // Also strip base64 from the actual code sent to AI to save tokens
       existingCode.html = stripBase64(existingCode.html || '');
     }
 
@@ -252,6 +279,22 @@ Please apply these changes: ${sanitizedPrompt}`;
 
     if (!uiCode.html || !uiCode.css) {
       throw new Error("Invalid UI code structure");
+    }
+
+    // Step 2: Extract placeholders and generate images in parallel
+    const placeholders = extractImagePlaceholders(uiCode.html);
+    
+    if (placeholders.length > 0) {
+      const imagePromises = placeholders.map(p => generateImage(p.alt, LOVABLE_API_KEY));
+      const images = await Promise.all(imagePromises);
+
+      // Replace placeholders with generated base64 images
+      for (let i = 0; i < placeholders.length; i++) {
+        const img = images[i];
+        if (img) {
+          uiCode.html = uiCode.html.replaceAll(placeholders[i].placeholder, img);
+        }
+      }
     }
 
     return new Response(
