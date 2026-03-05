@@ -8,7 +8,10 @@ const corsHeaders = {
 
 const MAX_PROMPT_LENGTH = 1000;
 const MAX_EXISTING_CODE_LENGTH = 500000;
-// No AI image generation - use only Unsplash for speed
+
+function sanitizeInput(input: string): string {
+  return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+}
 
 function buildSystemPrompt(isRefinement: boolean): string {
   const imageRules = `
