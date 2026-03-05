@@ -2,7 +2,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, Menu } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
@@ -31,19 +31,19 @@ export function MainLayout({ children }: MainLayoutProps) {
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
-        <main className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 border-b border-border/50 flex items-center px-4 bg-background/80 backdrop-blur-md sticky top-0 z-30">
-            <SidebarTrigger className="mr-4 hover:bg-muted rounded-lg transition-colors" />
+        <main className="flex-1 flex flex-col">
+          <header className="h-14 border-b border-border flex items-center px-4 bg-card/50 backdrop-blur-sm">
+            <SidebarTrigger className="mr-4" />
             <div className="flex-1" />
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="gap-2 hover:bg-muted">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center ring-2 ring-background">
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center">
                       <User className="w-4 h-4 text-primary-foreground" />
                     </div>
-                    <span className="hidden md:inline text-sm font-medium max-w-[120px] truncate">
+                    <span className="hidden md:inline text-sm font-medium">
                       {profile?.username || user?.email?.split("@")[0]}
                     </span>
                   </Button>
