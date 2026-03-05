@@ -14,55 +14,13 @@ function sanitizeInput(input: string): string {
 }
 
 function buildSystemPrompt(isRefinement: boolean): string {
-  const imageRules = `
-IMAGE RULES:
-- Use MINIMAL images - only include images when absolutely essential (e.g. avatar, hero). Prefer CSS gradients, icons, and colors over images.
-- When images ARE needed, use https://images.unsplash.com/photo-{id}?w={width}&h={height}&fit=crop&auto=format
-- Real Unsplash photo IDs: 1494790108377-be9c29b29330, 1498050108023-c5249f4df085, 1506744038136-46273834b3fb, 1505740420928-5e560c06d30e
-- Max 1-2 images per component. Prefer no images when possible.`;
-
   if (isRefinement) {
-    return `You are an expert UI developer. You will be given existing HTML, CSS, and JavaScript code, and a request to modify it.
-
-IMPORTANT: You must respond with ONLY valid JSON in this exact format (no markdown, no code blocks, no extra text):
-{"html":"<your html here>","css":"<your css here>","js":"<your js here>"}
-
-Rules:
-1. Modify the existing code based on the user's request
-2. Keep the overall structure intact unless explicitly asked to change it
-3. Apply the requested changes precisely
-4. Maintain consistency with the existing design unless asked otherwise
-5. Ensure responsive design is preserved
-6. Use vanilla JavaScript for interactivity
-7. Escape all quotes and special characters properly in the JSON strings
-8. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
-9. NEVER include inline event handlers that reference external URLs
-${imageRules}
-
-Remember: Respond with ONLY the JSON object, nothing else.`;
+    return `You modify HTML/CSS/JS code. Respond with ONLY JSON: {"html":"...","css":"...","js":"..."}
+Rules: Keep structure, apply changes precisely, vanilla JS only, no external requests, no images unless asked. Dark theme: bg #0f172a, cards #1e293b, text #f8fafc, accent #22d3ee.`;
   }
 
-  return `You are an expert UI developer. Generate clean, modern, and responsive UI components using HTML, CSS, and JavaScript.
-
-IMPORTANT: You must respond with ONLY valid JSON in this exact format (no markdown, no code blocks, no extra text):
-{"html":"<your html here>","css":"<your css here>","js":"<your js here>"}
-
-Rules:
-1. Generate complete, working UI components
-2. Use modern CSS with flexbox/grid
-3. Use a dark theme with these colors: background #0f172a, cards #1e293b, borders #334155, text #f8fafc, muted #94a3b8, accent #22d3ee
-4. Add hover effects and smooth transitions
-5. Make it responsive
-6. Include meaningful placeholder content
-7. Use vanilla JavaScript for interactivity
-8. Escape all quotes and special characters properly in the JSON strings
-9. The CSS should work standalone (no external dependencies)
-10. The HTML should be a complete component that fills the container
-11. NEVER generate code that attempts to access parent frames, cookies, localStorage, or make external network requests
-12. NEVER include inline event handlers that reference external URLs
-${imageRules}
-
-Remember: Respond with ONLY the JSON object, nothing else.`;
+  return `You generate UI components. Respond with ONLY JSON: {"html":"...","css":"...","js":"..."}
+Rules: Modern CSS flexbox/grid, dark theme (bg #0f172a, cards #1e293b, borders #334155, text #f8fafc, muted #94a3b8, accent #22d3ee), responsive, hover effects, vanilla JS, no external deps, no images unless essential. If images needed use https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&h=300&fit=crop&auto=format`;
 }
 
 serve(async (req) => {
@@ -161,10 +119,9 @@ ${existingCode.js || "// No JavaScript"}
 
 Please apply these changes: ${sanitizedPrompt}`;
     } else {
-      userPrompt = `Generate a UI component for: ${sanitizedPrompt}. Use minimal images, prefer CSS styling.`;
+      userPrompt = `Create: ${sanitizedPrompt}. No images unless essential.`;
     }
 
-    // Step 1: Generate UI code
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -177,7 +134,8 @@ Please apply these changes: ${sanitizedPrompt}`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.3,
+        temperature: 0.2,
+        max_tokens: 4000,
       }),
     });
 
