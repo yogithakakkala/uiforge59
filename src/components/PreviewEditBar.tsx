@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Wand2, Loader2, Palette, Type, Image, Sparkles } from "lucide-react";
+import { Wand2, Loader2, Palette, Type, Layout, Sparkles, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface PreviewEditBarProps {
   onRefine: (prompt: string) => Promise<void>;
@@ -11,9 +12,9 @@ interface PreviewEditBarProps {
 
 const quickActions = [
   { icon: Palette, label: "Colors", prompt: "Change the color scheme to" },
-  { icon: Type, label: "Fonts", prompt: "Update the typography to use" },
-  { icon: Image, label: "Images", prompt: "Add or modify images to" },
-  { icon: Sparkles, label: "Style", prompt: "Improve the styling by" },
+  { icon: Type, label: "Typography", prompt: "Update the typography to use" },
+  { icon: Layout, label: "Layout", prompt: "Restructure the layout to" },
+  { icon: Sparkles, label: "Polish", prompt: "Improve the styling by" },
 ];
 
 export function PreviewEditBar({ onRefine, isRefining }: PreviewEditBarProps) {
@@ -23,11 +24,11 @@ export function PreviewEditBar({ onRefine, isRefining }: PreviewEditBarProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPrompt.trim() || isRefining) return;
-    
-    const fullPrompt = activeAction 
+
+    const fullPrompt = activeAction
       ? `${activeAction} ${editPrompt}`
       : editPrompt;
-    
+
     await onRefine(fullPrompt);
     setEditPrompt("");
     setActiveAction(null);
@@ -43,51 +44,66 @@ export function PreviewEditBar({ onRefine, isRefining }: PreviewEditBarProps) {
   };
 
   return (
-    <div className="border-t border-border bg-card/50 backdrop-blur-sm animate-fade-in">
+    <div className="border-t border-border/50 bg-card/30 backdrop-blur-md">
       {/* Quick Actions */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border overflow-x-auto">
-        <span className="text-xs text-muted-foreground whitespace-nowrap">Quick edit:</span>
+      <div className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto">
+        <span className="text-xs text-muted-foreground whitespace-nowrap font-medium">Edit:</span>
         {quickActions.map((action) => (
-          <button
+          <motion.button
             key={action.label}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => handleQuickAction(action.prompt)}
             disabled={isRefining}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap border",
               activeAction === action.prompt
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground"
+                ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                : "bg-muted/50 hover:bg-muted border-border/50 text-muted-foreground hover:text-foreground"
             )}
           >
             <action.icon className="w-3 h-3" />
             {action.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 
       {/* Edit Input */}
-      <form onSubmit={handleSubmit} className="p-4">
-        <div className="flex items-center gap-3">
+      <form onSubmit={handleSubmit} className="px-4 pb-4 pt-1">
+        <div className="flex items-center gap-2">
           <div className="flex-1 relative">
-            {activeAction && (
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-primary font-medium">
-                {activeAction}
-              </span>
-            )}
+            <AnimatePresence>
+              {activeAction && (
+                <motion.span
+                  initial={{ opacity: 0, x: -5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -5 }}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-primary font-medium"
+                >
+                  {activeAction}
+                </motion.span>
+              )}
+            </AnimatePresence>
             <Input
               value={editPrompt}
               onChange={(e) => setEditPrompt(e.target.value)}
               placeholder={
                 activeAction
                   ? "Describe what you want..."
-                  : "Describe changes... e.g., 'Make the button larger and add a shadow'"
+                  : "Describe changes... e.g., 'Make the button larger'"
               }
               disabled={isRefining}
               className={cn(
-                "bg-background border-border focus-visible:ring-primary",
+                "bg-background/50 border-border/50 focus:border-primary/50 pr-20",
                 activeAction && "pl-[140px]"
               )}
               style={activeAction ? { paddingLeft: `${activeAction.length * 7 + 20}px` } : undefined}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
             />
           </div>
           <Button
@@ -95,23 +111,21 @@ export function PreviewEditBar({ onRefine, isRefining }: PreviewEditBarProps) {
             disabled={!editPrompt.trim() || isRefining}
             variant="glow"
             size="default"
+            className="shrink-0"
           >
             {isRefining ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Refining...
+                Refining
               </>
             ) : (
               <>
-                <Wand2 className="w-4 h-4" />
+                <Send className="w-4 h-4" />
                 Apply
               </>
             )}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          💡 Tip: Be specific about what you want to change for better results
-        </p>
       </form>
     </div>
   );
