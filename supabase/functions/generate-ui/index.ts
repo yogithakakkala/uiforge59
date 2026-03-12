@@ -131,7 +131,7 @@ Please apply these changes: ${sanitizedPrompt}`;
           { role: "user", content: userPrompt },
         ],
         temperature: 0.2,
-        max_tokens: 4000,
+        max_tokens: 2000,
       }),
     });
 
