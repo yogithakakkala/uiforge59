@@ -15,12 +15,9 @@ function sanitizeInput(input: string): string {
 
 function buildSystemPrompt(isRefinement: boolean): string {
   if (isRefinement) {
-    return `You modify HTML/CSS/JS code. Respond with ONLY JSON: {"html":"...","css":"...","js":"..."}
-Rules: Keep structure, apply changes precisely, vanilla JS only, no external requests, no images unless asked. Dark theme: bg #0f172a, cards #1e293b, text #f8fafc, accent #22d3ee.`;
+    return `Modify HTML/CSS/JS. Return ONLY: {"html":"...","css":"...","js":"..."}. Keep it short. Dark theme: bg #0f172a, cards #1e293b, text #f8fafc, accent #22d3ee.`;
   }
-
-  return `You generate UI components. Respond with ONLY JSON: {"html":"...","css":"...","js":"..."}
-Rules: Modern CSS flexbox/grid, dark theme (bg #0f172a, cards #1e293b, borders #334155, text #f8fafc, muted #94a3b8, accent #22d3ee), responsive, hover effects, vanilla JS, no external deps, no images unless essential. If images needed use https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&h=300&fit=crop&auto=format`;
+  return `Generate a UI component. Return ONLY: {"html":"...","css":"...","js":"..."}. Keep code minimal and concise. Dark theme (bg #0f172a, cards #1e293b, text #f8fafc, accent #22d3ee). CSS only, no images, no external deps.`;
 }
 
 serve(async (req) => {
@@ -44,9 +41,8 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return new Response(
         JSON.stringify({ error: "Invalid or expired token" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -135,7 +131,7 @@ Please apply these changes: ${sanitizedPrompt}`;
           { role: "user", content: userPrompt },
         ],
         temperature: 0.2,
-        max_tokens: 4000,
+        max_tokens: 2000,
       }),
     });
 
